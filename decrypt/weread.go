@@ -7,13 +7,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/yeka/zip"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
 	"strconv"
+
+	"github.com/yeka/zip"
 )
 
 func initHeader(req *http.Request, vid, skey string) *http.Request {
@@ -69,7 +70,7 @@ func getPassword(vid string, encryptKey string) string {
 		}
 		pwdStr += string(decryptedData[i])
 	}
-	fmt.Println("密码", pwdStr)
+	fmt.Println("pwd", pwdStr)
 	return pwdStr
 }
 
