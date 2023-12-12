@@ -68,8 +68,7 @@
 import {
   NButton,
   NIcon,
-  NSelect,
-  NProgress,
+  useMessage,
   NModal,
   NGrid,
   NGi,
@@ -85,7 +84,7 @@ const shwoDownloadModalRef = ref(false);
 const downloadBookId = ref("");
 const downloadBookName = ref("");
 const downloadBookType = ref("");
-
+const message = useMessage();
 const router = useRouter();
 const checkLoginStatus = () => {
   if (!localStorage.getItem("userInfo")) {
@@ -110,12 +109,20 @@ const downloadBook = (bookId, bookName, isTxt) => {
   shwoDownloadModalRef.value = true;
   downloadBookId.value = bookId.toString();
   downloadBookName.value = bookName;
-  bookIsTxt.value = isTxt;
+  //bookIsTxt.value = isTxt;
 };
 const downloadBookStart = () => {
   let vid = vidRef.value.toString();
 
-  Download(downloadBookId.value, skeyRef.value, vid);
+  Download(downloadBookId.value, skeyRef.value, vid).then((msg) => {
+    if (msg == "下载完成") {
+      message.success(
+        "下载完成,请到文件夹查看，可手动打开“看这里”文件夹下的xhtml 用浏览器导出pdf"
+      );
+    } else {
+      message.error(msg);
+    }
+  });
 };
 
 onBeforeMount(() => {

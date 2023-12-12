@@ -1,9 +1,10 @@
 <script setup>
 import { RouterView } from "vue-router";
+import { NMessageProvider } from "naive-ui";
 </script>
 
 <template>
-  <div>
+  <n-message-provider>
     <n-config-provider> <RouterView /></n-config-provider>
-  </div>
+  </n-message-provider>
 </template>

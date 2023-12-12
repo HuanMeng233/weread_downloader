@@ -3,11 +3,14 @@ module changeme
 go 1.18
 
 require (
+	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/wailsapp/wails/v2 v2.6.0
 	github.com/yeka/zip v0.0.0-20231116150916-03d6312748a9
+	golang.org/x/net v0.10.0
 )
 
 require (
+	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/google/uuid v1.3.0 // indirect
@@ -30,7 +33,6 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	golang.org/x/crypto v0.9.0 // indirect
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 // indirect
-	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 )

@@ -7,12 +7,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/html"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
 	"strconv"
+	"strings"
 
 	"github.com/yeka/zip"
 )
@@ -74,7 +77,146 @@ func getPassword(vid string, encryptKey string) string {
 	return pwdStr
 }
 
-func GetBookInfo(bookId, skey, vid string) (int64, int64, string) {
+func MergeTxtBook(bookName, bookPath string) {
+	type BookInfo struct {
+		BookId            string `json:"bookId"`
+		Synckey           int    `json:"synckey"`
+		ChapterUpdateTime int    `json:"chapterUpdateTime"`
+		Chapters          []struct {
+			ChapterUid  int     `json:"chapterUid"`
+			ChapterIdx  int     `json:"chapterIdx"`
+			UpdateTime  int     `json:"updateTime"`
+			Title       string  `json:"title"`
+			WordCount   int     `json:"wordCount"`
+			Price       float64 `json:"price"`
+			IsMPChapter int     `json:"isMPChapter"`
+			Paid        int     `json:"paid"`
+		} `json:"chapters"`
+	}
+	f, err := os.Open(bookPath + "info.txt")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	var bookInfo BookInfo
+	err = json.NewDecoder(f).Decode(&bookInfo)
+	if err != nil {
+		panic(err)
+	}
+	//创建目录
+	os.Mkdir(bookPath+"看这里", os.ModePerm)
+	//创建txt文件
+	bookFile, _ := os.Create(bookPath + "看这里/" + bookName + ".txt")
+	defer bookFile.Close()
+	//读取章节信息
+	for _, chapter := range bookInfo.Chapters {
+		oldName := fmt.Sprintf("%s_%d_o", bookInfo.BookId, chapter.ChapterUid)
+		newName := fmt.Sprintf("第%d章 %s", chapter.ChapterIdx, chapter.Title)
+		//读取章节内容
+		chapterFile, err := os.Open(bookPath + oldName)
+
+		if err != nil {
+			panic(err)
+		}
+
+		//写入章节内容
+		bookFile.WriteString(newName + "\n\n\n")
+		buf := make([]byte, 1024)
+		for {
+			n, err := chapterFile.Read(buf)
+			if err != nil {
+				break
+			}
+			bookFile.Write(buf[:n])
+		}
+		chapterFile.Close()
+		bookFile.WriteString("\n\n\n")
+	}
+
+}
+
+func MergePdfBook(bookName, bookPath string) {
+	type BookInfo struct {
+		BookId            string `json:"bookId"`
+		Synckey           int    `json:"synckey"`
+		ChapterUpdateTime int    `json:"chapterUpdateTime"`
+		Chapters          []struct {
+			ChapterUid  int      `json:"chapterUid"`
+			ChapterIdx  int      `json:"chapterIdx"`
+			UpdateTime  int      `json:"updateTime"`
+			Title       string   `json:"title"`
+			WordCount   int      `json:"wordCount"`
+			Price       int      `json:"price"`
+			IsMPChapter int      `json:"isMPChapter"`
+			Paid        int      `json:"paid"`
+			Level       int      `json:"level"`
+			Files       []string `json:"files"`
+			Anchors     []struct {
+				Title  string `json:"title"`
+				Anchor string `json:"anchor"`
+				Level  int    `json:"level"`
+			} `json:"anchors,omitempty"`
+		} `json:"chapters"`
+	}
+	page := `<div style="page-break-after: always;"></div>`
+	htmlBody := `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title></title>
+    <link href="../Styles/stylesheets.css" rel="stylesheet" type="text/css" />
+  </head>
+	<body>
+	  </body>
+</html>
+	`
+
+	f, err := os.Open(bookPath + "info.txt")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	var bookInfo BookInfo
+	err = json.NewDecoder(f).Decode(&bookInfo)
+
+	os.Mkdir(bookPath+"看这里", os.ModePerm)
+	coverFile, _ := os.Open(bookPath + bookInfo.Chapters[0].Files[0])
+	defer coverFile.Close()
+
+	htmlDoc, _ := goquery.NewDocumentFromReader(strings.NewReader(htmlBody))
+
+	for _, chapter := range bookInfo.Chapters {
+		for _, file := range chapter.Files {
+			f, _ := os.Open(bookPath + file)
+			doc, _ := goquery.NewDocumentFromReader(f)
+			docHtml, _ := doc.Html()
+			docHtml = html.UnescapeString(docHtml)
+			defer f.Close()
+
+			ddd, _ := goquery.NewDocumentFromReader(strings.NewReader(docHtml))
+			htmlData, _ := ddd.Html()
+			htmlData = html.UnescapeString(htmlData)
+			bodyData := strings.Split(htmlData, "</head>")[1]
+			bodyData = strings.Split(bodyData, "</html>")[0]
+			bodyData = strings.ReplaceAll(bodyData, "body", "div")
+
+			htmlDoc.Find("body").AppendHtml(bodyData)
+			htmlDoc.Find("body").AppendHtml(page)
+
+		}
+	}
+	//创建bookFile
+	bookFile, _ := os.Create(bookPath + "看这里/" + bookName + ".xhtml")
+	defer bookFile.Close()
+	//写入bookFile
+	h, _ := htmlDoc.Html()
+
+	bookFile.WriteString(html.UnescapeString(h))
+
+}
+
+func GetBookInfo(bookId, skey, vid string) (int64, int64, string, string) {
 
 	url := "https://i.weread.qq.com/book/info?bookId=" + bookId + "&myzy=1&source=reading&teenmode=0"
 	client := http.Client{}
@@ -249,32 +391,34 @@ func GetBookInfo(bookId, skey, vid string) (int64, int64, string) {
 	bookVersion := res.Version
 	bookFormat := res.Format
 	fmt.Println(bookChapterSize, bookVersion, bookFormat)
-	return bookChapterSize, bookVersion, bookFormat
+	return bookChapterSize, bookVersion, bookFormat, res.Title
 }
-func DownloadBook(bookId, skey, vid string) bool {
+func DownloadBook(bookId, skey, vid string) string {
 	fmt.Println("开始下载", bookId)
-	bookChapterSize, bookVersion, bookFormat := GetBookInfo(bookId, skey, vid)
+	bookChapterSize, bookVersion, bookFormat, bookName := GetBookInfo(bookId, skey, vid)
 	url := fmt.Sprintf("https://i.weread.qq.com/book/chapterdownload?bookId=%s&chapters=0-%d&pf=wechat_wx-2001-android-100-weread&pfkey=pfKey&zoneId=1&bookVersion=%d&bookType=%s&quote=&release=1&stopAutoPayWhenBNE=1&preload=2&preview=0&offline=0&giftPayingCard=0&enVersion=7.5.0&modernVersion=7.5.0&teenmode=0", bookId, bookChapterSize, bookVersion, bookFormat)
 	client := http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	req = initHeader(req, vid, skey)
-	if err != nil {
-		fmt.Println(err, "new request")
-	}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println(err, "do request")
-		return false
+		return "请求失败"
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == 401 {
+		return "登录超时,请清除登录数据，重新登录"
+	}
+	if resp.StatusCode == 402 {
+		return "没有下载整本书的权限，请检查是否在微信读书中购买了整本书"
+	}
 	encryptKey := resp.Header.Get("encryptKey")
 	pwdStr := getPassword(vid, encryptKey)
 	os.MkdirAll("./book/"+vid+"/", os.ModePerm)
-	f, err := os.Create("./book/" + vid + "/" + bookId + ".zip")
+	f, err := os.Create("./book/" + vid + "/" + bookName + ".zip")
 	if err != nil {
 		fmt.Println(err, "create f")
-		return false
+		return "创建文件失败"
 	}
 	defer f.Close()
 	//写出文件
@@ -282,13 +426,13 @@ func DownloadBook(bookId, skey, vid string) bool {
 	_, err = f.Write(bookData)
 	if err != nil {
 		fmt.Println(err, "write file")
-		return false
+		return "写出文件失败"
 	}
 	//解压文件
 	zipReader, err := zip.NewReader(bytes.NewReader(bookData), int64(len(bookData)))
 	if err != nil {
 		fmt.Println(err, "new zip reader")
-		return false
+		return "解压文件失败"
 	}
 	for _, f := range zipReader.File {
 		if f.IsEncrypted() {
@@ -297,9 +441,9 @@ func DownloadBook(bookId, skey, vid string) bool {
 		r, err := f.Open()
 		if err != nil {
 			fmt.Println(err, "open file")
-			return false
+			return "打开文件失败"
 		}
-		fileName := "./book/" + vid + "/" + bookId + "/" + f.Name
+		fileName := "./book/" + vid + "/" + bookName + "/" + f.Name
 		_, err = os.Stat(fileName)
 		if err == nil {
 			continue
@@ -310,7 +454,7 @@ func DownloadBook(bookId, skey, vid string) bool {
 			err = os.MkdirAll(dir, 0777)
 			if err != nil {
 				fmt.Println(err)
-				return false
+				return "创建文件夹失败"
 
 			}
 		}
@@ -318,17 +462,22 @@ func DownloadBook(bookId, skey, vid string) bool {
 		file, err := os.Create(fileName)
 		if err != nil {
 			fmt.Println(err)
-			return false
+			return "创建文件失败"
 		}
 		b, err := ioutil.ReadAll(r)
 		if err != nil {
 			fmt.Println(err)
-			return false
+			return "读取文件失败"
 		}
 		file.Write(b)
 		file.Close()
 
 	}
-	fmt.Println("下载完成", bookId)
-	return true
+	//导出书籍
+	if bookFormat == "epub" {
+		MergePdfBook(bookName, "./book/"+vid+"/"+bookName+"/")
+	} else {
+		MergeTxtBook(bookName, "./book/"+vid+"/"+bookName+"/")
+	}
+	return "下载完成"
 }

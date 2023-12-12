@@ -128,6 +128,6 @@ func (a *App) GetBookShelf(vid, skey string) string {
 	return rawBooks
 
 }
-func (a *App) Download(bookId, skey, vid string) {
-	decrypt.DownloadBook(bookId, skey, vid)
+func (a *App) Download(bookId, skey, vid string) string {
+	return decrypt.DownloadBook(bookId, skey, vid)
 }
