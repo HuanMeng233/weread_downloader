@@ -159,7 +159,7 @@ func MergePdfBook(bookName, bookPath string) {
 		} `json:"chapters"`
 	}
 	page := `<div style="page-break-after: always;"></div>`
-	htmlBody := `<?xml version="1.0" encoding="utf-8"?>
+	htmlBody := `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -207,7 +207,7 @@ func MergePdfBook(bookName, bookPath string) {
 		}
 	}
 	//创建bookFile
-	bookFile, _ := os.Create(bookPath + "看这里/" + bookName + ".xhtml")
+	bookFile, _ := os.Create(bookPath + "看这里/" + bookName + ".html")
 	defer bookFile.Close()
 	//写入bookFile
 	h, _ := htmlDoc.Html()
