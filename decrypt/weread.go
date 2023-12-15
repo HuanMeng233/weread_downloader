@@ -37,25 +37,23 @@ func getKeyAndIV(vid int) ([]byte, []byte) {
 	remapArr := [10]byte{0x2d, 0x50, 0x56, 0xd7, 0x72, 0x53, 0xbf, 0x22, 0xfb, 0x20}
 	vidLen := len(strconv.Itoa(vid))
 	vidRemap := make([]byte, vidLen)
-
 	for i := 0; i < vidLen; i++ {
 		vidRemap[i] = remapArr[strconv.Itoa(vid)[i]-'0']
 	}
-	key := make([]byte, 36)
-	for i := 0; i < 36; i++ {
+	key := make([]byte, 32)
+	for i := 0; i < 32; i++ {
 		key[i] = vidRemap[i%vidLen]
 	}
-	iv := make([]byte, 16)
-	for i := 0; i < 16; i++ {
-		iv[i] = key[i+7]
-	}
+	fmt.Println(key)
 	key = key[0:16]
+	iv := key[16:32]
 	return key, iv
 }
 
 func getPassword(vid string, encryptKey string) string {
 	vidInt, _ := strconv.Atoi(vid)
 	key, iv := getKeyAndIV(vidInt)
+	fmt.Println(key, iv)
 	encryptData, _ := base64.StdEncoding.DecodeString(encryptKey)
 
 	block, err := aes.NewCipher(key)
@@ -222,7 +220,7 @@ func GetBookInfo(bookId, skey, vid string) (int64, int64, string, string) {
 
 	url := "https://i.weread.qq.com/book/info?bookId=" + bookId + "&myzy=1&source=reading&teenmode=0"
 	client := http.Client{}
-
+	fmt.Println("获取书籍信息请求Url", url)
 	req, _ := http.NewRequest("GET", url, nil)
 	req = initHeader(req, vid, skey)
 
@@ -230,7 +228,8 @@ func GetBookInfo(bookId, skey, vid string) (int64, int64, string, string) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println(resp.StatusCode)
+	fmt.Println("获取书籍信息返回状态码", resp.StatusCode)
+
 	defer resp.Body.Close()
 
 	type Res struct {
@@ -400,6 +399,7 @@ func DownloadBook(bookId, skey, vid string) string {
 	bookChapterSize, bookVersion, bookFormat, bookName := GetBookInfo(bookId, skey, vid)
 	url := fmt.Sprintf("https://i.weread.qq.com/book/chapterdownload?bookId=%s&chapters=0-%d&pf=wechat_wx-2001-android-100-weread&pfkey=pfKey&zoneId=1&bookVersion=%d&bookType=%s&quote=&release=1&stopAutoPayWhenBNE=1&preload=2&preview=0&offline=0&giftPayingCard=0&enVersion=7.5.0&modernVersion=7.5.0&teenmode=0", bookId, bookChapterSize, bookVersion, bookFormat)
 	client := http.Client{}
+	fmt.Println("下载请求Url", url)
 	req, err := http.NewRequest("GET", url, nil)
 	req = initHeader(req, vid, skey)
 	resp, err := client.Do(req)
@@ -408,13 +408,20 @@ func DownloadBook(bookId, skey, vid string) string {
 		return "请求失败"
 	}
 	defer resp.Body.Close()
+	bookData, _ := io.ReadAll(resp.Body)
+	fmt.Println("下载请求返回状态码", resp.StatusCode)
 	if resp.StatusCode == 401 {
+		fmt.Println("下载请求返回body", string(bookData))
 		return "登录超时,请清除登录数据，重新登录"
 	}
 	if resp.StatusCode == 402 {
+		fmt.Println("下载请求返回body", string(bookData))
 		return "没有下载整本书的权限，请检查是否在微信读书中购买了整本书"
 	}
+
+	//读取body
 	encryptKey := resp.Header.Get("encryptKey")
+	fmt.Println(vid, encryptKey)
 	pwdStr := getPassword(vid, encryptKey)
 	os.MkdirAll("./book/"+vid+"/", os.ModePerm)
 	f, err := os.Create("./book/" + vid + "/" + bookName + ".zip")
@@ -424,7 +431,6 @@ func DownloadBook(bookId, skey, vid string) string {
 	}
 	defer f.Close()
 	//写出文件
-	bookData, err := io.ReadAll(resp.Body)
 	_, err = f.Write(bookData)
 	if err != nil {
 		fmt.Println(err, "write file")
