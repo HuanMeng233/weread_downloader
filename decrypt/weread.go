@@ -157,15 +157,20 @@ func MergePdfBook(bookName, bookPath string) {
 		} `json:"chapters"`
 	}
 	page := `<div style="page-break-after: always;"></div>`
+	//css样式
+	styles, _ := os.ReadDir(bookPath + "Styles")
+	var styleBody string
+	for _, style := range styles {
+		s := fmt.Sprintf(`<link href="../Styles/%s" rel="stylesheet" type="text/css" />`+"\n", style.Name())
+		styleBody += s
+	}
 	htmlBody := `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <title></title>
-    <link href="../Styles/stylesheets.css" rel="stylesheet" type="text/css" />
-	<link href="../Styles/stylesheet.css" rel="stylesheet" type="text/css" />
-
+    ` + styleBody + `
   </head>
 	<body>
 	  </body>
@@ -189,21 +194,14 @@ func MergePdfBook(bookName, bookPath string) {
 	for _, chapter := range bookInfo.Chapters {
 		for _, file := range chapter.Files {
 			f, _ := os.Open(bookPath + file)
-			doc, _ := goquery.NewDocumentFromReader(f)
-			docHtml, _ := doc.Html()
-			docHtml = html.UnescapeString(docHtml)
 			defer f.Close()
-
-			ddd, _ := goquery.NewDocumentFromReader(strings.NewReader(docHtml))
-			htmlData, _ := ddd.Html()
-			htmlData = html.UnescapeString(htmlData)
-			bodyData := strings.Split(htmlData, "</head>")[1]
-			bodyData = strings.Split(bodyData, "</html>")[0]
-			bodyData = strings.ReplaceAll(bodyData, "body", "div")
-
+			docBody, _ := io.ReadAll(f)
+			docHtml := string(docBody)
+			docHtml = strings.Split(docHtml, "</head>")[1]
+			docHtml = strings.Split(docHtml, "</html>")[0]
+			bodyData := strings.ReplaceAll(docHtml, "body", "div")
 			htmlDoc.Find("body").AppendHtml(bodyData)
 			htmlDoc.Find("body").AppendHtml(page)
-
 		}
 	}
 	//创建bookFile
@@ -211,7 +209,6 @@ func MergePdfBook(bookName, bookPath string) {
 	defer bookFile.Close()
 	//写入bookFile
 	h, _ := htmlDoc.Html()
-
 	bookFile.WriteString(html.UnescapeString(h))
 
 }
